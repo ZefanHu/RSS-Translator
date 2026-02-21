@@ -1,9 +1,11 @@
 import logging
+from django.apps import apps
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 from django.utils.html import format_html, mark_safe
 from django.shortcuts import redirect
+from django.db import transaction, close_old_connections
 from core.models.agent import OpenAIAgent, DeepLAgent, LibreTranslateAgent, TestAgent
 from utils.modelAdmin_utils import status_icon
 from core.admin import core_admin_site
@@ -12,19 +14,58 @@ from core.tasks.task_manager import task_manager
 logger = logging.getLogger(__name__)
 
 
+def validate_agent_by_id(model_label: str, agent_id: int):
+    """
+    Validate agent in worker thread by reloading from DB.
+    Avoid sharing request-thread model instances with background threads.
+    """
+    close_old_connections()
+    try:
+        model = apps.get_model(model_label)
+        if model is None:
+            logger.error("Unknown model label for validation task: %s", model_label)
+            return False
+
+        agent = model.objects.filter(pk=agent_id).first()
+        if agent is None:
+            logger.warning(
+                "Skip validate task because agent not found: %s#%s",
+                model_label,
+                agent_id,
+            )
+            return False
+
+        return agent.validate()
+    finally:
+        close_old_connections()
+
+
 class AgentAdmin(admin.ModelAdmin):
     # get_model_perms = lambda self, request: {}  # 不显示在admin页面
     def save_model(self, request, obj, form, change):
         logger.info("Call save_model: %s", obj)
-        # obj.valid = None
-        # obj.save()
+
         try:
             obj.valid = None
-            task_manager.submit_task(f"validate_agent_{obj.id}", obj.validate)
+            obj.save()
+
+            model_label = obj._meta.label_lower
+            task_name = f"validate_agent_{obj.id}"
+            agent_id = obj.id
+
+            def submit_validation_task():
+                try:
+                    task_manager.submit_task(
+                        task_name, validate_agent_by_id, model_label, agent_id
+                    )
+                except Exception as e:
+                    logger.error("Error in agent: %s", e)
+                    obj.__class__.objects.filter(pk=agent_id).update(valid=False)
+
+            transaction.on_commit(submit_validation_task)
         except Exception as e:
             obj.valid = False
             logger.error("Error in agent: %s", e)
-        finally:
             obj.save()
         return redirect("/core/agent")
 

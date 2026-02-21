@@ -24,7 +24,8 @@ class AgentAdminTest(TestCase):
 
         # Test successful save
         self.assertIsNone(self.openai_agent.valid)
-        response = self.admin.save_model(request, self.openai_agent, None, None)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.admin.save_model(request, self.openai_agent, None, None)
 
         self.openai_agent.refresh_from_db()
         mock_submit_task.assert_called_once()
@@ -35,13 +36,42 @@ class AgentAdminTest(TestCase):
         mock_submit_task.side_effect = Exception("Task Error")
         mock_submit_task.reset_mock()
 
-        response = self.admin.save_model(request, self.openai_agent, None, None)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.admin.save_model(request, self.openai_agent, None, None)
 
         self.openai_agent.refresh_from_db()
         mock_submit_task.assert_called_once()
         self.assertFalse(self.openai_agent.valid)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, "/core/agent")
+
+    @patch("core.tasks.task_manager.task_manager.submit_task")
+    def test_save_model_uses_persisted_agent_id_in_task_name(self, mock_submit_task):
+        request = self.factory.get("/admin/core/openaiahent/add/")
+        new_agent = OpenAIAgent(
+            name=f"Fresh OpenAI Agent {uuid.uuid4()}",
+            api_key="sk-xyz",
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.admin.save_model(request, new_agent, None, None)
+
+        self.assertIsNotNone(new_agent.id)
+        task_name = mock_submit_task.call_args[0][0]
+        self.assertEqual(task_name, f"validate_agent_{new_agent.id}")
+        self.assertNotIn("None", task_name)
+
+    @patch("core.tasks.task_manager.task_manager.submit_task")
+    def test_save_model_submits_id_based_validation_task(self, mock_submit_task):
+        request = self.factory.get("/admin/core/openaiahent/add/")
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.admin.save_model(request, self.openai_agent, None, None)
+
+        submit_args = mock_submit_task.call_args[0]
+        self.assertEqual(submit_args[0], f"validate_agent_{self.openai_agent.id}")
+        self.assertEqual(submit_args[2], self.openai_agent._meta.label_lower)
+        self.assertEqual(submit_args[3], self.openai_agent.id)
 
     def test_delete_model(self):
         """Test delete_model redirects and deletes object."""

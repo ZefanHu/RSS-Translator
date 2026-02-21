@@ -29,6 +29,7 @@ with open(BASE_DIR / "pyproject.toml", "rb") as f:
     pyproject = tomllib.load(f)
     VERSION = pyproject["project"]["version"]
 LT_TIMEOUT=int(os.environ.get("LT_TIMEOUT", '5'))
+SQLITE_TIMEOUT=float(os.environ.get("SQLITE_TIMEOUT", "30"))
 
 X_FRAME_OPTIONS = os.environ.get("X_FRAME_OPTIONS", "DENY")
 
@@ -130,6 +131,9 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": DATA_FOLDER / "db.sqlite3",
+        "OPTIONS": {
+            "timeout": SQLITE_TIMEOUT,
+        },
     }
 }
 
