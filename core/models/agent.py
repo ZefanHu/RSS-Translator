@@ -702,7 +702,7 @@ class TestAgent(Agent):
         time.sleep(self.interval)
         return {"text": self.translated_text, "tokens": 10, "characters": len(text)}
 
-    def summarize(self, text: str, target_language: str) -> dict:
+    def summarize(self, text: str, target_language: str, **kwargs) -> dict:
         logger.info(">>> Test Summarize [%s]: %s", target_language, text)
         time.sleep(self.interval)
         return {"text": self.translated_text, "tokens": 10, "characters": len(text)}

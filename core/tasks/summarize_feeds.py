@@ -109,6 +109,7 @@ def summarize_feed(
                     chunk_delimiter=chunk_delimiter,
                     max_chunks_per_entry=max_chunks_per_entry,
                     summary_detail=feed.summary_detail,
+                    user_prompt=feed.additional_prompt,
                 )
 
                 entry.ai_summary = summary
@@ -163,6 +164,7 @@ def _summarize_entry(
     chunk_delimiter: str,
     max_chunks_per_entry: int,
     summary_detail: float,
+    user_prompt: str = None,
 ) -> tuple[str, int]:
     """
     Summarize a single entry with memory optimizations.
@@ -210,6 +212,7 @@ def _summarize_entry(
             max_retries=3,
             text=text_chunks[0],
             target_language=target_language,
+            user_prompt=user_prompt,
         )
         summary = response.get("text", "")
         tokens = response.get("tokens", 0)
@@ -249,6 +252,7 @@ def _summarize_entry(
             text=prompt,
             target_language=target_language,
             max_tokens=max_context_tokens,
+            user_prompt=user_prompt,
         )
 
         chunk_summary = response.get("text", "")

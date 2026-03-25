@@ -80,6 +80,7 @@ def translate_feed(feed: Feed, target_field: str = "title"):
                     entry=entry,
                     target_language=feed.target_language,
                     engine=feed.translator,
+                    user_prompt=feed.additional_prompt,
                 )
                 total_tokens += metrics["tokens"]
                 total_characters += metrics["characters"]
@@ -103,6 +104,7 @@ def translate_feed(feed: Feed, target_field: str = "title"):
                     entry=entry,
                     target_language=feed.target_language,
                     engine=feed.translator,
+                    user_prompt=feed.additional_prompt,
                 )
                 total_tokens += metrics["tokens"]
                 total_characters += metrics["characters"]
@@ -162,6 +164,7 @@ def _translate_entry_title(
     entry: Entry,
     target_language: str,
     engine: Agent,
+    user_prompt: str = None,
 ) -> dict:
     """Translate entry title with memory optimization."""
     total_tokens = 0
@@ -178,6 +181,7 @@ def _translate_entry_title(
         text=entry.original_title,
         target_language=target_language,
         text_type="title",
+        user_prompt=user_prompt,
     )
 
     if result:
@@ -193,6 +197,7 @@ def _translate_entry_content(
     entry: Entry,
     target_language: str,
     engine: Agent,
+    user_prompt: str = None,
 ) -> dict:
     """Translate entry content with memory optimization."""
     total_tokens = 0
@@ -230,6 +235,7 @@ def _translate_entry_content(
         text=processed_html,
         target_language=target_language,
         text_type="content",
+        user_prompt=user_prompt,
     )
 
     translated_content = result.get("text")

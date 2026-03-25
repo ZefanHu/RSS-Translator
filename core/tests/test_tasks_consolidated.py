@@ -689,6 +689,52 @@ class TasksConsolidatedTestCase(TestCase):
         self.feed.refresh_from_db()
         self.assertIsNotNone(self.feed.last_translate)
 
+    @patch("core.tasks.translate_feeds.auto_retry")
+    def test_translate_feed_passes_additional_prompt_for_title(
+        self, mockauto_retry
+    ):
+        """测试标题翻译会透传feed.additional_prompt"""
+        self.feed.translator = self.agent
+        self.feed.translate_title = True
+        self.feed.additional_prompt = "Use glossary terms"
+        self.feed.save()
+        self._create_test_entry()
+
+        mockauto_retry.return_value = {
+            "text": "Translated Title",
+            "tokens": 10,
+            "characters": 15,
+        }
+
+        translate_feed(self.feed, target_field="title")
+
+        self.assertEqual(
+            mockauto_retry.call_args.kwargs["user_prompt"], "Use glossary terms"
+        )
+
+    @patch("core.tasks.translate_feeds.auto_retry")
+    def test_translate_feed_passes_additional_prompt_for_content(
+        self, mockauto_retry
+    ):
+        """测试正文翻译会透传feed.additional_prompt"""
+        self.feed.translator = self.agent
+        self.feed.translate_content = True
+        self.feed.additional_prompt = "Preserve HTML structure"
+        self.feed.save()
+        self._create_test_entry(content="<p>Test content</p>")
+
+        mockauto_retry.return_value = {
+            "text": "<p>Translated content</p>",
+            "tokens": 20,
+            "characters": 30,
+        }
+
+        translate_feed(self.feed, target_field="content")
+
+        self.assertEqual(
+            mockauto_retry.call_args.kwargs["user_prompt"], "Preserve HTML structure"
+        )
+
     @patch("core.tasks.fetch_feeds.handle_single_feed_fetch")
     def test_handle_feeds_summary(self, mock_handle_single):
         """测试批量摘要处理 - 批量操作验证"""
@@ -718,6 +764,35 @@ class TasksConsolidatedTestCase(TestCase):
         except Exception as e:
             # 如果出现异常，这是预期的，因为测试环境可能缺少某些依赖
             self.fail(f"Unexpected exception: {e}")
+
+    @patch("core.tasks.summarize_feeds.auto_retry")
+    @patch("core.tasks.summarize_feeds.text_handler.adaptive_chunking")
+    @patch("core.tasks.summarize_feeds.text_handler.get_token_count")
+    @patch("core.tasks.summarize_feeds.text_handler.clean_content")
+    def test_summarize_feed_passes_additional_prompt(
+        self,
+        mock_clean_content,
+        mock_get_token_count,
+        mock_adaptive_chunking,
+        mockauto_retry,
+    ):
+        """测试摘要会透传feed.additional_prompt"""
+        self.feed.summarizer = self.agent
+        self.feed.additional_prompt = "Keep blockchain terms in English"
+        self.feed.save()
+        self._create_test_entry(content="<p>Long content</p>")
+
+        mock_clean_content.return_value = "Long content"
+        mock_get_token_count.return_value = 100
+        mock_adaptive_chunking.return_value = ["Long content"]
+        mockauto_retry.return_value = {"text": "Summary", "tokens": 12}
+
+        summarize_feed(self.feed)
+
+        self.assertEqual(
+            mockauto_retry.call_args.kwargs["user_prompt"],
+            "Keep blockchain terms in English",
+        )
 
     # ==================== Edge Cases and Error Handling ====================
 
