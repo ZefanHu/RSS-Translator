@@ -47,6 +47,11 @@ Thanks to the following companies for their open-source support.
         <img src="https://railway.app/brand/logo-light.png" alt="Railway" style="width:100px; height:100px;">
       </a>
     </td>
+    <td style="padding:10px;">
+      <a href="https://insforge.dev/">
+        <img src="https://raw.githubusercontent.com/InsForge/InsForge/refs/heads/main/assets/Dark.svg" alt="InsForge" style="width:100px; height:100px;">
+      </a>
+    </td>
   </tr>
 </table>
 

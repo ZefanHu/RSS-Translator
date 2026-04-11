@@ -45,6 +45,11 @@
         <img src="https://railway.app/brand/logo-light.png" alt="Railway" style="width:100px; height:100px;">
       </a>
     </td>
+    <td style="padding:10px;">
+      <a href="https://insforge.dev/">
+        <img src="https://raw.githubusercontent.com/InsForge/InsForge/refs/heads/main/assets/Dark.svg" alt="InsForge" style="width:100px; height:100px;">
+      </a>
+    </td>
   </tr>
 </table>
 
@@ -98,5 +103,3 @@
 ## Star历史图
 
 [![Star History Chart](https://api.star-history.com/svg?repos=versun/rssbox&type=Date)](https://star-history.com/#versun/rssbox&Date)
-
-
