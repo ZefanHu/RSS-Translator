@@ -1150,7 +1150,7 @@ wheels = [
 
 [[package]]
 name = "rssbox"
-version = "2026.2.21"
+version = "2026.4.11"
 source = { editable = "." }
 dependencies = [
     { name = "bs4" },

@@ -259,6 +259,31 @@ class TasksOptimizedTestCase(TestCase):
         entry.refresh_from_db()
         self.assertEqual(entry.original_content, "<p>Fetched article content</p>")
 
+    @patch("core.tasks.translate_feeds._fetch_article_content")
+    @patch("core.tasks.translate_feeds.auto_retry")
+    def test_translate_feed_fetches_article_when_original_content_empty(
+        self, mockauto_retry, mock_fetch_article
+    ):
+        """原正文为空时，仍应先抓全文再翻译正文"""
+        entry = self._create_test_entry(content="")
+
+        mock_fetch_article.return_value = "<p>Fetched article content</p>"
+        mockauto_retry.return_value = {
+            "text": "<p>Translated fetched content</p>",
+            "tokens": 10,
+            "characters": 50,
+        }
+
+        translate_feed(self.feed, "content")
+
+        entry.refresh_from_db()
+        mock_fetch_article.assert_called_once_with(entry.link)
+        self.assertEqual(entry.original_content, "<p>Fetched article content</p>")
+        self.assertEqual(
+            entry.translated_content,
+            "<p>Translated fetched content</p>",
+        )
+
     # ==================== 覆盖第378行 - 摘要引擎检查 ====================
 
     def test_summarize_feed_no_summarizer(self):

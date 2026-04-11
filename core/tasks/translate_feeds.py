@@ -87,11 +87,7 @@ def translate_feed(feed: Feed, target_field: str = "title"):
                 entry_needs_save = True
 
             # Process content translation
-            if (
-                target_field == "content"
-                and feed.translate_content
-                and entry.original_content
-            ):
+            if target_field == "content" and feed.translate_content:
                 if feed.fetch_article:
                     article_content = _fetch_article_content(entry.link)
                     if article_content:
@@ -100,15 +96,16 @@ def translate_feed(feed: Feed, target_field: str = "title"):
                         # Clean up article content after use
                         del article_content
 
-                metrics = _translate_entry_content(
-                    entry=entry,
-                    target_language=feed.target_language,
-                    engine=feed.translator,
-                    user_prompt=feed.additional_prompt,
-                )
-                total_tokens += metrics["tokens"]
-                total_characters += metrics["characters"]
-                entry_needs_save = True
+                if entry.original_content:
+                    metrics = _translate_entry_content(
+                        entry=entry,
+                        target_language=feed.target_language,
+                        engine=feed.translator,
+                        user_prompt=feed.additional_prompt,
+                    )
+                    total_tokens += metrics["tokens"]
+                    total_characters += metrics["characters"]
+                    entry_needs_save = True
 
             if entry_needs_save:
                 entries_to_save.append(entry)
