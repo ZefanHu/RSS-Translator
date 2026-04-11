@@ -883,6 +883,34 @@ class OpenAIAgentModelTest(TestCase):
         # task_manager should not be called when API call fails
         mock_task_manager.submit_task.assert_not_called()
 
+    @patch("core.models.agent.task_manager")
+    @patch("core.models.agent.OpenAI")
+    def test_validate_does_not_overwrite_newer_prompt_changes(
+        self, mock_openai_class, mock_task_manager
+    ):
+        """Validation should not write stale prompt fields back to the database."""
+        stale_agent = OpenAIAgent.objects.get(pk=self.agent.pk)
+        updated_prompt = "updated prompt from admin"
+
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(finish_reason="stop")]
+        mock_client.with_options().chat.completions.create.return_value = (
+            mock_completion
+        )
+        mock_openai_class.return_value = mock_client
+
+        OpenAIAgent.objects.filter(pk=self.agent.pk).update(
+            title_translate_prompt=updated_prompt
+        )
+
+        stale_agent.validate()
+
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.title_translate_prompt, updated_prompt)
+        self.assertTrue(self.agent.valid)
+        mock_task_manager.submit_task.assert_called_once()
+
     @patch.object(OpenAIAgent, "completions")
     def test_translate_method(self, mock_completions):
         """Test the translate method calls completions with the correct prompt."""
@@ -1096,6 +1124,76 @@ class OpenAIAgentModelTest(TestCase):
         # Should perform detection despite cached value
         self.assertIsInstance(result, int)
         mock_client.chat.completions.create.assert_called()
+
+    @patch("core.models.agent.OpenAI")
+    def test_detect_model_limit_does_not_overwrite_newer_prompt_changes(
+        self, mock_openai_class
+    ):
+        """Model limit detection should only persist max_tokens."""
+        stale_agent = OpenAIAgent.objects.get(pk=self.agent.pk)
+        updated_prompt = "updated prompt from admin"
+
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(finish_reason="stop")]
+        mock_openai_class.return_value = mock_client
+        mock_client.chat.completions.create.return_value = mock_completion
+
+        OpenAIAgent.objects.filter(pk=self.agent.pk).update(
+            title_translate_prompt=updated_prompt
+        )
+
+        result = stale_agent.detect_model_limit(force=True)
+
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.title_translate_prompt, updated_prompt)
+        self.assertEqual(self.agent.max_tokens, result)
+
+    @patch("core.models.agent.OpenAI")
+    def test_detect_model_limit_does_not_overwrite_newer_max_tokens(
+        self, mock_openai_class
+    ):
+        """Model limit detection should not clobber a newer manual max_tokens value."""
+        stale_agent = OpenAIAgent.objects.get(pk=self.agent.pk)
+        manual_max_tokens = 8192
+
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(finish_reason="stop")]
+        mock_openai_class.return_value = mock_client
+        mock_client.chat.completions.create.return_value = mock_completion
+
+        OpenAIAgent.objects.filter(pk=self.agent.pk).update(max_tokens=manual_max_tokens)
+
+        stale_agent.detect_model_limit(force=True)
+
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.max_tokens, manual_max_tokens)
+
+    @patch("core.models.agent.OpenAI")
+    def test_detect_model_limit_does_not_persist_stale_result_after_model_change(
+        self, mock_openai_class
+    ):
+        """Model limit detection should not write a limit for a model that has changed."""
+        stale_agent = OpenAIAgent.objects.get(pk=self.agent.pk)
+        updated_model = "gpt-new"
+
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        mock_completion.choices = [MagicMock(finish_reason="stop")]
+        mock_openai_class.return_value = mock_client
+        mock_client.chat.completions.create.return_value = mock_completion
+
+        OpenAIAgent.objects.filter(pk=self.agent.pk).update(
+            model=updated_model,
+            max_tokens=0,
+        )
+
+        stale_agent.detect_model_limit(force=True)
+
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.model, updated_model)
+        self.assertEqual(self.agent.max_tokens, 0)
 
     @patch.object(OpenAIAgent, "completions")
     def test_summarize_method(self, mock_completions):
@@ -1397,6 +1495,63 @@ class OpenAIAgentCompletionsAdvancedTest(TestCase):
 
         # At minimum, verify that with_options was called
         mock_client.with_options.assert_called_once()
+
+    @patch("core.models.agent.get_token_count", return_value=10)
+    @patch("core.models.agent.OpenAI")
+    def test_completions_does_not_overwrite_newer_prompt_changes(
+        self, mock_openai_class, mock_get_token_count
+    ):
+        """Successful completions should not save stale prompt fields."""
+        stale_agent = OpenAIAgent.objects.get(pk=self.agent.pk)
+        updated_prompt = "updated prompt from admin"
+
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="Response"), finish_reason="stop")
+        ]
+        mock_completion.usage = MagicMock(total_tokens=50)
+        mock_openai_class.return_value = mock_client
+        mock_client.with_options().chat.completions.create.return_value = (
+            mock_completion
+        )
+
+        OpenAIAgent.objects.filter(pk=self.agent.pk).update(
+            title_translate_prompt=updated_prompt
+        )
+
+        stale_agent.completions("test text", system_prompt="system prompt")
+
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.title_translate_prompt, updated_prompt)
+
+    @patch("core.models.agent.get_token_count", return_value=10)
+    @patch("core.models.agent.OpenAI")
+    def test_completions_does_not_resave_stale_log_on_success(
+        self, mock_openai_class, mock_get_token_count
+    ):
+        """Successful completions should not write an old log value back to the database."""
+        original_log = "stale error log"
+        OpenAIAgent.objects.filter(pk=self.agent.pk).update(log=original_log)
+        stale_agent = OpenAIAgent.objects.get(pk=self.agent.pk)
+
+        mock_client = MagicMock()
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="Response"), finish_reason="stop")
+        ]
+        mock_completion.usage = MagicMock(total_tokens=50)
+        mock_openai_class.return_value = mock_client
+        mock_client.with_options().chat.completions.create.return_value = (
+            mock_completion
+        )
+
+        OpenAIAgent.objects.filter(pk=self.agent.pk).update(log="")
+
+        stale_agent.completions("test text", system_prompt="system prompt")
+
+        self.agent.refresh_from_db()
+        self.assertEqual(self.agent.log, "")
 
 
 class LibreTranslateAgentAdvancedTest(TestCase):

@@ -167,12 +167,15 @@ class OpenAIAgent(Agent):
                 self.valid = False
                 return False
             finally:
-                self.save()
+                self.save(update_fields=["log", "valid"])
 
     def detect_model_limit(self, force=False) -> int:
         """通过二分搜索来高效检测模型实际限制"""
         if not force and self.max_tokens != 0:
             return self.max_tokens
+
+        initial_model = self.model
+        initial_max_tokens = self.max_tokens
 
         # 二分搜索找到确切限制
         def binary_search_limit(low, high):
@@ -223,7 +226,25 @@ class OpenAIAgent(Agent):
         # 直接使用二分搜索
         final_limit = binary_search_limit(4096, 1000000)
         self.max_tokens = final_limit
-        self.save()
+
+        if self.pk is None:
+            return final_limit
+
+        updated = type(self).objects.filter(
+            pk=self.pk,
+            model=initial_model,
+            max_tokens=initial_max_tokens,
+        ).update(max_tokens=final_limit)
+        if updated:
+            return final_limit
+
+        current_max_tokens = (
+            type(self).objects.filter(pk=self.pk).values_list("max_tokens", flat=True).first()
+        )
+        if current_max_tokens is not None:
+            self.max_tokens = current_max_tokens
+            return current_max_tokens
+
         return final_limit
 
     def _wait_for_rate_limit(self):
@@ -270,6 +291,7 @@ class OpenAIAgent(Agent):
         client = self._init()
         tokens = 0
         result_text = ""
+        log_updated = False
 
         try:
             if user_prompt:
@@ -401,10 +423,11 @@ class OpenAIAgent(Agent):
             tokens = res.usage.total_tokens if getattr(res, "usage", None) else 0
         except Exception as e:
             self.log = f"{timezone.now()}: {str(e)}"
+            log_updated = True
             logger.error(f"{self.name}: {e}")
 
-        if not _is_chunk:
-            self.save()
+        if not _is_chunk and log_updated:
+            self.save(update_fields=["log"])
 
         return {"text": result_text, "tokens": tokens}
 
