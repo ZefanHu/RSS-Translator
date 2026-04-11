@@ -10,6 +10,8 @@ services:
       - DEBUG=0
       - DEMO=0
       - USER_MANAGEMENT=0
+      - OPENAI_API_TIMEOUT=300
+      - OPENAI_API_MAX_RETRIES=0
       - LOG_LEVEL=ERROR
       - default_max_posts=20
     volumes:

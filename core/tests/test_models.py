@@ -965,6 +965,34 @@ class OpenAIAgentModelTest(TestCase):
         self.assertEqual(result_failure["text"], "")
         self.assertEqual(result_failure["tokens"], 0)
 
+    @patch("core.models.agent.get_token_count", return_value=10)
+    @patch("core.models.agent.OpenAI")
+    def test_completions_uses_configured_openai_retry_count(
+        self, mock_openai_class, mock_get_token_count
+    ):
+        """Completions should respect configurable OpenAI retry count."""
+        self.agent.max_tokens = 4096
+
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_completion = MagicMock()
+        mock_completion.choices = [
+            MagicMock(message=MagicMock(content="Test response"), finish_reason="stop"),
+        ]
+        mock_completion.usage = MagicMock(total_tokens=42)
+        mock_client.with_options().chat.completions.create.return_value = (
+            mock_completion
+        )
+
+        with patch(
+            "core.models.agent.settings.OPENAI_API_MAX_RETRIES", 0, create=True
+        ):
+            result = self.agent.completions("test content", system_prompt="system")
+
+        self.assertEqual(result["text"], "Test response")
+        self.assertEqual(mock_client.with_options.call_args.kwargs["max_retries"], 0)
+
     @patch.object(OpenAIAgent, "_init")
     @patch("core.models.agent.adaptive_chunking")
     @patch("core.models.agent.get_token_count")
@@ -1241,11 +1269,20 @@ class OpenAIAgentAdvancedTest(TestCase):
 
     def test_openai_agent_init_method(self):
         """Test OpenAIAgent _init method to cover line 99-103."""
-        with patch("core.models.agent.OpenAI") as mock_openai:
+        with (
+            patch("core.models.agent.settings.OPENAI_API_TIMEOUT", 300.0, create=True),
+            patch(
+                "core.models.agent.settings.OPENAI_API_MAX_RETRIES", 0, create=True
+            ),
+            patch("core.models.agent.OpenAI") as mock_openai,
+        ):
             client = self.agent._init()
 
             mock_openai.assert_called_once_with(
-                api_key=self.agent.api_key, base_url=self.agent.base_url, timeout=120.0
+                api_key=self.agent.api_key,
+                base_url=self.agent.base_url,
+                timeout=300.0,
+                max_retries=0,
             )
 
     @patch("core.models.agent.OpenAI")
@@ -1478,7 +1515,7 @@ class OpenAIAgentCompletionsAdvancedTest(TestCase):
             len(with_options_call_args) > 1
             and "max_retries" in with_options_call_args[1]
         ):
-            self.assertEqual(with_options_call_args[1]["max_retries"], 3)
+            self.assertEqual(with_options_call_args[1]["max_retries"], 0)
 
         # Check if extra_headers is in keyword arguments
         if (

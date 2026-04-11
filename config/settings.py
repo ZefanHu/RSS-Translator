@@ -30,6 +30,8 @@ with open(BASE_DIR / "pyproject.toml", "rb") as f:
     VERSION = pyproject["project"]["version"]
 LT_TIMEOUT=int(os.environ.get("LT_TIMEOUT", '5'))
 SQLITE_TIMEOUT=float(os.environ.get("SQLITE_TIMEOUT", "30"))
+OPENAI_API_TIMEOUT = float(os.environ.get("OPENAI_API_TIMEOUT", "120"))
+OPENAI_API_MAX_RETRIES = max(0, int(os.environ.get("OPENAI_API_MAX_RETRIES", "0")))
 
 X_FRAME_OPTIONS = os.environ.get("X_FRAME_OPTIONS", "DENY")
 

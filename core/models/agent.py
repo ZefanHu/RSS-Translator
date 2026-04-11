@@ -111,7 +111,8 @@ class OpenAIAgent(Agent):
         return OpenAI(
             api_key=self.api_key,
             base_url=self.base_url,
-            timeout=120.0,
+            timeout=settings.OPENAI_API_TIMEOUT,
+            max_retries=settings.OPENAI_API_MAX_RETRIES,
         )
 
     def validate(self) -> bool:
@@ -139,7 +140,9 @@ class OpenAIAgent(Agent):
                         {"role": "user", "content": user_content},
                     ]
 
-                res = client.with_options(max_retries=3).chat.completions.create(
+                res = client.with_options(
+                    max_retries=settings.OPENAI_API_MAX_RETRIES
+                ).chat.completions.create(
                     extra_headers=self.EXTRA_HEADERS,
                     model=self.model,
                     messages=messages,
@@ -395,7 +398,9 @@ class OpenAIAgent(Agent):
             ):
                 call_kwargs["max_completion_tokens"] = output_token_limit
 
-            res = client.with_options(max_retries=3).chat.completions.create(
+            res = client.with_options(
+                max_retries=settings.OPENAI_API_MAX_RETRIES
+            ).chat.completions.create(
                 extra_headers=self.EXTRA_HEADERS,
                 model=self.model,
                 messages=messages,

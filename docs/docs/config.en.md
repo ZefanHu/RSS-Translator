@@ -88,6 +88,24 @@ This document lists all available environment variable configuration options for
   - `ERROR` - Error messages (recommended for production)
   - `CRITICAL` - Critical errors
 
+## OpenAI API Configuration
+
+### OPENAI_API_TIMEOUT
+- **Description**: Timeout in seconds for a single OpenAI-compatible API request
+- **Default**: `120`
+- **Example**: `300`
+- **Details**:
+  - Increase this for long article translations
+  - Retry behavior after timeout is controlled by `OPENAI_API_MAX_RETRIES`
+
+### OPENAI_API_MAX_RETRIES
+- **Description**: SDK-level automatic retry count for OpenAI-compatible API requests
+- **Default**: `0`
+- **Example**: `0`
+- **Details**:
+  - Disabled by default to avoid resending the same request after a timeout
+  - Increase it only if you explicitly want automatic retries
+
 ## Cache Configuration
 
 ### REDIS_URL
@@ -107,6 +125,8 @@ environment:
   - DEBUG=0
   - TIME_ZONE=Asia/Shanghai
   - DEFAULT_TARGET_LANGUAGE=Chinese Simplified
+  - OPENAI_API_TIMEOUT=300
+  - OPENAI_API_MAX_RETRIES=0
   - LOG_LEVEL=ERROR
   - CSRF_TRUSTED_ORIGINS=https://rssbox.example.com
   - REDIS_URL=redis://redis:6379/1

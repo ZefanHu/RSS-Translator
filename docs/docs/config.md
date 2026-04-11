@@ -88,6 +88,24 @@ summary: RSSBox 所有可用的环境变量配置说明
   - `ERROR` - 错误信息（推荐用于生产环境）
   - `CRITICAL` - 严重错误
 
+## OpenAI 接口配置
+
+### OPENAI_API_TIMEOUT
+- **说明**: OpenAI 兼容接口的单次请求超时时间（秒）
+- **默认值**: `120`
+- **示例**: `300`
+- **说明**:
+  - 长文章翻译可适当调高
+  - 超时后是否重试由 `OPENAI_API_MAX_RETRIES` 控制
+
+### OPENAI_API_MAX_RETRIES
+- **说明**: OpenAI 兼容接口的 SDK 自动重试次数
+- **默认值**: `0`
+- **示例**: `0`
+- **说明**:
+  - 默认关闭，避免同一请求因超时被重复发送
+  - 如需开启，可按需手动调高
+
 ## 缓存配置
 
 ### REDIS_URL
@@ -107,6 +125,8 @@ environment:
   - DEBUG=0
   - TIME_ZONE=Asia/Shanghai
   - DEFAULT_TARGET_LANGUAGE=Chinese Simplified
+  - OPENAI_API_TIMEOUT=300
+  - OPENAI_API_MAX_RETRIES=0
   - LOG_LEVEL=ERROR
   - CSRF_TRUSTED_ORIGINS=https://rssbox.example.com
   - REDIS_URL=redis://redis:6379/1
